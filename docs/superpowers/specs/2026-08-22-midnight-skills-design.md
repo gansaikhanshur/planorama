@@ -5,43 +5,68 @@
 
 ## Purpose
 
-A personal, publicly shareable collection of Claude Code agent skills with a
-single theme: **trust and verification**. Every skill answers some form of
-"was the thing done right?" rather than "do the thing."
+A collection of agent skills themed on trust and verification: skills that
+answer "was the thing done right?" rather than "do the thing."
 
-This niche is underserved. Most public skill repositories are collections of
-capabilities. `midnight-skills` is a collection of checks.
+**Multi-agent, not Claude-specific.** v1 targets Claude Code and Codex. Both
+are installed and authenticated on the development machine, both expose a
+`skills/` directory convention, and both offer a non-interactive mode. Further
+agents may be added later; nothing in the design assumes only two.
 
-## The house pattern
+## Scope
 
-Every skill in this repo works the same way: **adversarial review from starved
-context.**
+Two skills: `/rubberduck` and `/devils-advocate`. Plus repo scaffolding.
 
-A fresh subagent receives the artifact under review and nothing else. No
-reasoning trace, no tool-call commentary, no conversation that talked the work
-into sounding reasonable. It sees what exists, not the story of how it came to
-exist.
+These two happen to share a mechanism (below). That is a fact about these two
+skills, not a law governing the repository. Skills added later are free to work
+however they need to.
 
-This constraint is load-bearing, not stylistic:
+---
 
-- An agent reviewing its own work from its own context shares every blind spot
-  that produced the mistakes. It reliably reports that things went well.
+## The shared mechanism: starved context via headless dispatch
+
+Both v1 skills depend on review happening in a context that has never seen the
+conversation. This matters because:
+
+- An agent reviewing its own work carries every blind spot that produced the
+  mistakes, and reliably reports that things went well.
 - Given the author's reasoning, a reviewer explains the *intent* fluently and
-  glides straight past the bug. Denied it, the reviewer must derive intent from
-  what is actually there — which is what a human reading the code cold has to
-  do.
+  glides past the bug. Denied it, the reviewer must work from what is actually
+  there — which is what a human reading the code cold has to do.
 
-The pattern is what gives the collection an identity rather than making it a
-grab bag, and it is what new skills must conform to in order to belong here.
+### How it is achieved
 
-## Scope: v1
+The host skill gathers inputs, then shells out to a **headless run of the host
+agent**:
 
-Two skills, plus repo scaffolding. Not four, not six.
+```
+claude -p "$(cat <prompt-file>)" < package.md     # on Claude Code
+codex exec  "$(cat <prompt-file>)" < package.md   # on Codex
+```
 
-A skills repo that opens with six skills is six untested guesses about what
-gets reached for in practice. Two skills used daily are real, and the third
-earns its way in from a session where its absence was felt. Everything else
-goes to `BACKLOG.md` at one line each — free to write, costless to ignore.
+A fresh process starts, sees only what it is handed, prints to stdout, and
+exits. The host skill captures that output and presents it verbatim.
+
+**This is not a portability compromise — it is the better implementation on
+both platforms.** A headless run is strictly more starved than an in-session
+subagent, which inherits session framing, working context, and parent setup. A
+fresh process inherits nothing but the filesystem and stdin. Since starvation
+is the whole mechanism, the portable route is also the more correct one.
+
+### What the wall encloses
+
+The wall is around **the conversation**, not the codebase. The child process
+can and should read the repository — to say "the caller does not check this
+return value," it has to go look at the caller. It is blind to the story, free
+to inspect the evidence.
+
+### Costs, accepted
+
+- A second billed run per invocation.
+- Slower, and output arrives as one block rather than streaming.
+- Requires the host CLI on PATH and authenticated.
+- Headless runs have their own permission defaults; the child needs explicit
+  read-only tool permissions. Implementation detail, not a design risk.
 
 ---
 
@@ -49,146 +74,152 @@ goes to `BACKLOG.md` at one line each — free to write, costless to ignore.
 
 **Runs:** after a work session, on demand.
 
-**Answers:** what did the agent actually do, what is wrong with it, and how
-does that compare to what was asked?
+**Answers:** what did the agent actually do?
 
-### Inputs to the reviewer
+### The concept, faithfully
 
-The main agent assembles the review package and then gets out of the way. The
-reviewer subagent receives:
+Rubber duck debugging works because narrating code as it exists forces you to
+confront what it actually does. The bug surfaces at the moment the narration
+stops matching the code, or you hear yourself say something and it sounds
+wrong. Nobody ducks by explaining what they meant to build — intent is exactly
+what ducking removes.
+
+**You are the duck.** The agent explains its work to you, and the explaining is
+what surfaces the problems.
+
+This is the whole skill. It is not a code review with a walkthrough attached.
+Findings are the residue of an honest explanation, not a separate pass.
+
+### Inputs
 
 1. **The diff** — file changes since session start.
 2. **A bare action log** — commands executed, packages installed, files
    deleted, migrations applied, tests that failed and were never re-run. All
-   commentary and justification stripped. Facts of what happened, none of the
-   spin.
-3. **The spec of record** — a distillation of what was asked, used for section
-   3 only. Derived from the user's turns, never from the agent's own account of
-   what it believed was wanted. See below.
+   commentary stripped.
 
-The action log matters because a diff is silent on everything that did not hit
-tracked files: a dropped table, an installed dependency, a deleted untracked
-file, a test suite that was never re-run after the last edit.
+That is all. No plan file, no user turns, no reasoning trace, no statement of
+intent.
 
-The reviewer does **not** receive the agent's reasoning. See the house pattern.
-The spec of record does not violate that constraint: it is a record of what the
-*user* said, not of how the agent justified its work.
+The action log is included because a diff is silent on everything that did not
+hit tracked files: a dropped table, an installed dependency, a deleted
+untracked file, a suite that was never re-run after the last edit.
 
-### The mechanism
-
-The reviewer's task is to explain the work Feynman-style — plainly, concisely,
-without jargon, to someone who directed the work but did not read the code.
-
-**The explanation is the audit.** These are not two features stapled together.
-Feynman's actual claim is that inability to explain something simply reveals
-incomplete understanding. A reviewer forced to explain a diff it has no
-backstory for will stumble precisely where the code is incoherent,
-unjustified, or wrong — "this function catches the exception and returns null,
-which the caller then does not check." The stumbles are the findings.
-
-This is why the starved context is essential here specifically, and not merely
-an anti-rationalization habit.
+An earlier draft of this design added a third section comparing the work
+against what was asked, which required reconstructing the ask from a plan file
+or the user's turns. That was scope-checking wearing the duck's costume — a
+different activity, and the source of every hard problem in the design.
+Removing it deleted all of them.
 
 ### Output
 
-Three sections, in order:
+One continuous walkthrough, in plain language, describing what the code does.
+Problems surface inline, as interruptions, where the narration breaks down. No
+sections, no findings appendix, no severity table.
 
-1. **What happened** — ELI5 / Feynman walkthrough of the changes.
-2. **What is broken or missed** — bugs, mistakes, incomplete propagation,
-   unverified claims.
-3. **Alignment note** — "you asked for X, here is what landed." Cherry on top,
-   not the main course.
+Shape:
 
-### The spec of record (section 3 only)
+```
+upload.ts now pulls a Redis client at module load. If Redis is down at
+boot the import throws — and nothing catches it.
 
-Section 3 needs to know what was asked. The naive answer — the session's first
-message — is wrong and would make the skill useless: requirements evolve across
-a session through planning, pushback, and course correction. Judging a final
-diff against an opening message flags every negotiated decision as drift.
-Nothing but false positives.
+The handler checks the rate limit, and on limit returns 429. It reads the
+counter, adds one, writes it back — three separate calls, so two requests
+can interleave and both pass.
 
-Instead: the main agent derives a **spec of record** from the user's turns only
-— never from its own summary of what it believed was wanted, since a
-misunderstanding would be encoded faithfully and then validated against. Later
-statements override earlier ones. Dropped requirements are marked as dropped.
+legacy-limiter.ts was deleted. Two files still import it.
+```
 
-Because this feeds only section 3, the stakes are low. A fuzzy brief produces
-a fuzzy closing section; it cannot poison the explanation or the findings.
-Distill, show it, move on.
+### Stated limitation
 
-**Known gap:** in a compacted session, early user turns are gone from context
-and would need recovery from the transcript JSONL. Fallback, not day one.
+Without intent, the skill **cannot tell you that you built the wrong thing.**
+It can only tell you what you built and where that looks broken on its own
+terms. This limitation belongs in the skill's own text, not hidden.
 
-### Open implementation questions
+Intent-independent defects are the more reliable class anyway: they do not
+depend on anyone having correctly understood anything.
 
-- **Diff baseline.** Requires a session-start marker to diff against — likely a
-  `SessionStart` hook recording HEAD, with the working tree diff plus
-  session commits as the fallback. Design is not blocked on this.
+### Open implementation question
+
+**Diff baseline.** Requires a session-start marker to diff against — likely a
+session-start hook recording HEAD, with working-tree diff plus session commits
+as fallback. Both agents support hooks (`~/.codex/hooks.json` exists on this
+machine). Design is not blocked on this.
 
 ---
 
 ## Skill: `/devils-advocate`
 
-**Runs:** on a finalized plan, before execution. Works on a superpowers plan,
-a plain `plan.md`, or any agent-produced plan.
+**Runs:** on a finalized plan, before execution. Works against a superpowers
+plan, a plain `plan.md`, or any agent-produced plan file.
 
 **Answers:** is this plan actually right?
 
-**Inputs:** the plan and the goal it serves. Never the conversation that
-produced the plan — that conversation is where the plan got talked into
-sounding reasonable.
+**Input:** the plan file. Nothing else — not the conversation that produced it,
+which is where the plan got talked into sounding reasonable. A plan that does
+not state what it is for has a problem; that is a finding, not a missing input
+to go fetch.
+
+As with `/rubberduck`, the reviewer may read the repository freely — checking
+whether a plan's assumptions actually hold requires it.
 
 ### The failure mode being designed against
 
 Prompt an agent to "find flaws" and its implicit success criterion becomes
 "produce flaws." Returning nothing looks like failing the task, so it
-manufactures. The result is a twenty-minute litigation over objections that
-were invented to satisfy the prompt.
+manufactures, and the result is a twenty-minute litigation over objections
+invented to satisfy the prompt.
 
-Two distinct causes, addressed separately:
+Two distinct causes:
 
-**Cause 1 — an empty result feels like failure.** Fixed by the null exit
-(below). Agents pattern-match hard on which output shapes look legitimate; if
-every example in the skill is a list of objections, an empty list reads as
-malformed output.
+**An empty result feels like failure.** Addressed by the null exit. Agents
+pattern-match hard on which output shapes look legitimate; if every example in
+the skill is a list of objections, an empty list reads as malformed.
 
-**Cause 2 — no filter means everything coexists.** One real issue and seven
-nitpicks arrive undifferentiated, and the *reader* ends up doing the triage.
-Fixed by the bar and the per-item gate.
+**No filter means everything coexists.** One real issue and seven nitpicks
+arrive undifferentiated, and the reader ends up doing the triage. Addressed by
+the bar and the per-item gate.
 
 ### Rules
 
 - **The bar:** would acting on this change the plan? Technically-true-but-
-  changes-nothing is the largest category of red-team noise and does not get
+  changes-nothing is the largest category of red-team noise and is not
   reported.
-- **Uncapped.** No limit at any severity. A plan with eight genuine problems
-  gets eight objections. An earlier draft of this design capped output at three;
-  that conflated noise suppression with volume limiting, and only noise is the
-  problem. Hiding five real issues is worse than the litigation risk.
+- **Uncapped, at every tier.** A plan with eight genuine problems gets eight
+  objections. An earlier draft capped output at three; that conflated noise
+  suppression with volume limiting, and only noise is the problem. Hiding five
+  real issues is worse than the litigation risk.
 - **Per-item gate.** Every objection must state a concrete consequence *and*
   the concrete change it implies. Unable to fill both slots, it is not an
-  objection and does not get written. A nitpick structurally cannot fill them.
-  With no cap, this gate is the entire filter, so the skill text must enforce
-  it hard — especially on the minor tier, where padding creeps back in.
+  objection and is not written down. A nitpick structurally cannot fill them.
+  With no cap anywhere, this gate is the entire filter, so the skill text must
+  enforce it hard — especially on minor items, where padding creeps back in.
 - **Severity labels.** Triage belongs to the reviewer, not the reader. Labels
   are what turn a twenty-minute argument into a two-minute read.
 - **Both directions in scope.** Gaps and oversights, *and* over-engineering,
-  speculative abstraction, dead abstractions with one implementation, and
+  speculative abstraction, dead abstractions with a single implementation, and
   assumptions the plan invented rather than inherited. Most red-team prompts
-  only hunt for missing things; hunting for excess is a genuine differentiator.
+  hunt only for missing things; hunting for excess is the differentiator.
 - **Null exit.** `No material objection. The plan is sound.` A real, blessed,
   formatted ending — not an absence.
 - **Five or more blocking flips the frame.** That many real problems is not
   eight findings, it is one: the plan needs rework rather than repair. Output
-  becomes the root cause, not a patch list. A cap would have hidden this signal
-  entirely.
+  becomes the root cause, not a patch list.
 
 ### Known weakness
 
 The per-item gate forces justification, not quality. A compliant agent can
-still produce mediocre-but-well-formed objections. The null exit is what
-permits genuine emptiness, but compliance is not guaranteed. Severity labels
-are the backstop that lets a reader dismiss quickly.
+still produce mediocre-but-well-formed objections. The null exit permits
+genuine emptiness but does not guarantee it. Severity labels are the backstop
+that lets a reader dismiss quickly.
+
+---
+
+## How the two relate
+
+`/devils-advocate` attacks a plan before implementation. `/rubberduck` narrates
+the work afterward. Same lifecycle, opposite ends — but deliberately
+decoupled: `/rubberduck` never reads the plan, so neither skill depends on the
+other existing or having been run.
 
 ---
 
@@ -196,55 +227,52 @@ are the backstop that lets a reader dismiss quickly.
 
 ```
 midnight-skills/
-├─ .claude-plugin/
+├─ skills/
+│  ├─ rubberduck/
+│  │  ├─ SKILL.md            host-side: gather, dispatch, print
+│  │  └─ duck-prompt.md      child-side: narration instructions
+│  └─ devils-advocate/
+│     ├─ SKILL.md            host-side: locate plan, dispatch, print
+│     └─ advocate-prompt.md  child-side: objection rules
+├─ .claude-plugin/           Claude-only convenience wrapper
 │  ├─ plugin.json
 │  └─ marketplace.json
-├─ skills/
-│  ├─ rubberduck/SKILL.md
-│  └─ devils-advocate/SKILL.md
 ├─ docs/superpowers/specs/
-├─ BACKLOG.md
 └─ README.md
 ```
 
-The `skills/<name>/SKILL.md` layout is identical with or without the plugin
-manifests, so adding `.claude-plugin/` is purely additive. Both install paths
-work:
+### The two-file split per skill
 
-- `/plugin marketplace add <user>/midnight-skills`
-- `cp -r skills/* ~/.claude/skills/`
+`SKILL.md` runs in **your** session and does the gathering and dispatching.
+The prompt file runs in the **child's** context and contains the review
+instructions. Different audiences, different files.
 
-Manifest schema to be verified against current Claude Code plugin docs during
-implementation.
+This makes the starved-context boundary a *file* boundary — auditable at a
+glance. Anything in the prompt file reaches the reviewer; anything in SKILL.md
+does not.
 
-## BACKLOG.md
+### Installation
 
-Parked ideas, one line each. Built only when a real session makes their absence
-felt.
+Same `skills/<name>/SKILL.md` layout serves both agents:
 
-- **`/scope-drift`** — diff what was asked against what changed; catch
-  unrequested edits and, more importantly, silently dropped requirements.
-- **`/blast-radius`** — given a change, hunt everything that should have
-  changed with it: callers, tests, fixtures, docs, config, migrations.
-- **`/steelman`** — make the agent honestly defend its position under pushback
-  instead of instantly capitulating. Nothing comparable exists publicly.
-- **`/receipts`** — retroactively audit session claims ("tests pass", "no other
-  callers") and demand executable proof of each. Must differentiate from
-  `superpowers:verification-before-completion`, which is a pre-flight checklist
-  rather than a transcript audit.
-- **`/assumptions`** — surface load-bearing assumptions made silently mid-task,
-  each marked verified / assumed / guessed.
-- **`/regret`** — extract durable lessons from a session into CLAUDE.md.
-  Overlaps `claude-md-management`; weakest of the set.
+- Claude Code — `/plugin marketplace add <user>/midnight-skills`,
+  or `cp -r skills/* ~/.claude/skills/`
+- Codex — `cp -r skills/* ~/.codex/skills/`
 
-`/second-opinion` was considered as a peer skill and rejected as one: it is the
-starved-context mechanism itself, which belongs inside every skill here rather
-than beside them.
+**To verify during implementation:** that Codex's skill format matches Claude's
+`SKILL.md` frontmatter convention. `~/.codex/skills/` exists with a system
+marker but contains no user skills to inspect, so compatibility is inferred
+from the shared convention, not confirmed. If the formats diverge, the prompt
+files stay shared and only the thin SKILL.md wrappers fork.
+
+Also unresolved: the GitHub account name for the marketplace install string.
 
 ## Success criteria
 
-- Both skills are used in real sessions within two weeks of shipping.
+- Both skills run on Claude Code and Codex from the same repository.
+- `/rubberduck` describes what the code does without once describing what it
+  was meant to do.
+- `/rubberduck` surfaces at least one problem that would otherwise have shipped.
 - `/devils-advocate` returns its null exit on genuinely sound plans rather than
   manufacturing objections.
-- `/rubberduck` surfaces at least one finding that would otherwise have shipped.
 - Neither skill's output requires a follow-up argument to act on.

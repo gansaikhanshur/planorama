@@ -90,6 +90,38 @@ what surfaces the problems.
 This is the whole skill. It is not a code review with a walkthrough attached.
 Findings are the residue of an honest explanation, not a separate pass.
 
+### The Feynman constraint
+
+The explanation must be given in ordinary words — ELI5, in the Feynman sense:
+if you cannot explain it simply, you do not understand it.
+
+This is the second half of the mechanism, not a style preference. Starved
+context stops the reviewer from narrating *intent*. Plain language stops it
+from hiding behind *jargon* — and jargon is a compression that conceals gaps.
+"It handles the auth flow" is a sentence that can be said about badly broken
+code. "It takes the password, hashes it, and compares it against a hash it
+never looks up" cannot. Forcing the mechanism into ordinary words is what makes
+incoherence audible.
+
+The operational test, which belongs in the skill text:
+
+> **If a sentence would be equally true of working code and broken code, it is
+> too abstract.** Say what this code does, in words that could not describe a
+> correct version of it.
+
+Concretely, this means: describe mechanism rather than category; define any
+unavoidable domain term inline in ordinary words; prefer short sentences and
+concrete nouns; never name a pattern in place of describing behaviour.
+
+**Calibration: write for someone new to this codebase.** Assume the reader
+programs, but knows nothing about this project, its domain, or its conventions.
+
+Not literal five-year-old: analogies drift away from what the code actually
+does, and the walkthrough has to stay literally true of the diff. Not a peer
+engineer either — technical vocabulary is precisely where a shaky explanation
+hides, so allowing it weakens the mechanism. The useful setting is the reader
+who can follow code but has no context to fill gaps with.
+
 ### Inputs
 
 1. **The diff** — file changes since session start.
@@ -112,21 +144,24 @@ Removing it deleted all of them.
 
 ### Output
 
-One continuous walkthrough, in plain language, describing what the code does.
-Problems surface inline, as interruptions, where the narration breaks down. No
-sections, no findings appendix, no severity table.
+One continuous walkthrough describing what the code does, in the plain-language
+register above. Problems surface inline, as interruptions, where the narration
+breaks down. No sections, no findings appendix, no severity table.
 
 Shape:
 
 ```
-upload.ts now pulls a Redis client at module load. If Redis is down at
-boot the import throws — and nothing catches it.
+upload.ts asks for a connection to Redis the moment the file loads. If
+Redis happens to be down when the server starts, that line raises an
+error, and nothing around it catches the error.
 
-The handler checks the rate limit, and on limit returns 429. It reads the
-counter, adds one, writes it back — three separate calls, so two requests
-can interleave and both pass.
+The upload handler now keeps a count of how many requests each user has
+made, stored in Redis. Before letting a request through it reads that
+count, adds one, and writes it back — three separate trips to Redis. Two
+requests arriving at the same moment can both read the same number before
+either writes. Both get through, even when only one should.
 
-legacy-limiter.ts was deleted. Two files still import it.
+The old limiter file was deleted. Two files still import it.
 ```
 
 ### Stated limitation
@@ -272,6 +307,8 @@ Also unresolved: the GitHub account name for the marketplace install string.
 - Both skills run on Claude Code and Codex from the same repository.
 - `/rubberduck` describes what the code does without once describing what it
   was meant to do.
+- No sentence in a `/rubberduck` walkthrough would be equally true of a correct
+  version of the same code.
 - `/rubberduck` surfaces at least one problem that would otherwise have shipped.
 - `/devils-advocate` returns its null exit on genuinely sound plans rather than
   manufacturing objections.

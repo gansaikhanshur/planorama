@@ -1,0 +1,4 @@
+interface:
+  display_name: "Planorama"
+  short_description: "Inspect and challenge implementation plans visually"
+  default_prompt: "Use $planorama to review the current plan, open the browser, and wait for my feedback."

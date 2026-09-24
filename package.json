@@ -1,0 +1,46 @@
+{
+  "name": "planorama",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "node --import tsx scripts/build.ts",
+    "start": "next start --hostname 127.0.0.1",
+    "review": "node --import tsx scripts/launch.ts",
+    "wait": "node --import tsx scripts/wait.ts",
+    "validate": "node --import tsx scripts/validate.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "playwright test",
+    "format": "prettier --write app components lib scripts tests references examples *.ts *.json SKILL.md agents/openai.yaml",
+    "format:check": "prettier --check app components lib scripts tests references examples *.ts *.json SKILL.md agents/openai.yaml",
+    "planorama": "node --import tsx scripts/launch.ts"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.3",
+    "@xyflow/react": "^12.10.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.577.0",
+    "next": "^16.3.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "prettier": "^3.9.6",
+    "tailwindcss": "^4.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "type": "module"
+}

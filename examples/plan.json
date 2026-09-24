@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "id": "workspace-invites",
+  "revision": "2",
+  "title": "A safer, simpler workspace invite flow",
+  "summary": "Invite teammates by email with single-use links and a clear audit trail. Reuse the existing sign-in flow, make delivery recoverable, and roll out gradually.",
+  "extraction": "agent",
+  "objects": [
+    {
+      "id": "decision-tokens",
+      "kind": "decision",
+      "importance": "critical",
+      "title": "Make invite links single-use",
+      "summary": "Use hashed tokens that expire after 72 hours. Redeem the token and create membership in one transaction.",
+      "context": "An invite grants access to a workspace. Reusable or concurrently redeemed links could give unintended access.",
+      "rationale": "Server-side state supports revocation and atomic consumption. Storing a hash limits exposure if the database is read.",
+      "alternatives": [
+        {
+          "title": "Signed JWT invitations",
+          "tradeoff": "Avoids a token lookup, but revocation and single use still require server-side state."
+        }
+      ],
+      "consequences": [
+        "Accepting an invite requires a database transaction.",
+        "Admins need a resend path for expired invitations."
+      ],
+      "files": ["src/server/invites.ts", "prisma/schema.prisma"],
+      "source": {
+        "startLine": 5,
+        "endLine": 11
+      }
+    },
+    {
+      "id": "decision-outbox",
+      "kind": "decision",
+      "importance": "critical",
+      "title": "Decouple email from the request",
+      "summary": "Write an email outbox record alongside the invite, then deliver through the existing job queue.",
+      "context": "Email provider outages should not prevent an admin from creating an invitation.",
+      "rationale": "The invite and its email job commit together. A stable invite ID makes retries idempotent.",
+      "alternatives": [
+        {
+          "title": "Send email inline",
+          "tradeoff": "Less moving code, but the admin request depends on email provider availability."
+        }
+      ],
+      "consequences": [
+        "Delivery is asynchronous.",
+        "The worker needs an idempotent retry policy."
+      ],
+      "files": ["src/jobs/send-invite.ts"],
+      "source": {
+        "startLine": 13,
+        "endLine": 17
+      }
+    },
+    {
+      "id": "assumption-email",
+      "kind": "assumption",
+      "importance": "critical",
+      "title": "A verified email identifies the invitee",
+      "summary": "Confirm how email aliases and enterprise SSO accounts map to the provider\u2019s verified email before building acceptance.",
+      "source": {
+        "startLine": 19,
+        "endLine": 22
+      }
+    },
+    {
+      "id": "risk-concurrency",
+      "kind": "risk",
+      "importance": "critical",
+      "title": "Two requests could redeem one invite",
+      "summary": "Enforce unique workspace membership and consume tokens atomically. Test concurrent requests explicitly.",
+      "source": {
+        "startLine": 24,
+        "endLine": 26
+      }
+    },
+    {
+      "id": "step-model",
+      "kind": "step",
+      "title": "Add the invite data model",
+      "summary": "Create token, expiry, inviter, workspace, and outbox fields. Enforce unique workspace membership.",
+      "files": ["prisma/schema.prisma", "prisma/migrations/add_invites.sql"],
+      "source": {
+        "startLine": 28,
+        "endLine": 31
+      }
+    },
+    {
+      "id": "step-api",
+      "kind": "step",
+      "title": "Build creation and acceptance endpoints",
+      "summary": "Validate admin access, verified email, workspace scope, token expiry, and single use.",
+      "files": ["src/server/invites.ts", "src/app/api/invites/route.ts"],
+      "source": {
+        "startLine": 33,
+        "endLine": 37
+      }
+    },
+    {
+      "id": "step-ui",
+      "kind": "step",
+      "title": "Build the admin invite experience",
+      "summary": "Add an invite dialog, pending invites, resend action, and clear acceptance states.",
+      "files": ["src/components/invite-dialog.tsx", "src/app/invite/page.tsx"],
+      "source": {
+        "startLine": 39,
+        "endLine": 42
+      }
+    },
+    {
+      "id": "step-rollout",
+      "kind": "step",
+      "title": "Test the edges. Roll out gradually.",
+      "summary": "Cover concurrency, expired links, workspace isolation, and retries. Enable internal workspaces first.",
+      "files": ["tests/invites.test.ts"],
+      "source": {
+        "startLine": 44,
+        "endLine": 48
+      }
+    },
+    {
+      "id": "claim-recovery",
+      "kind": "claim",
+      "importance": "supporting",
+      "title": "Committed invites remain recoverable",
+      "summary": "A committed invitation always has an email job; retrying delivery does not create another invite.",
+      "source": {
+        "startLine": 50,
+        "endLine": 53
+      }
+    },
+    {
+      "id": "objection-expiry",
+      "kind": "objection",
+      "title": "Is 72 hours enough for enterprise teams?",
+      "summary": "Weekend delays could make onboarding frustrating. Consider configurable expiry or a low-friction resend path.",
+      "source": {
+        "startLine": 55,
+        "endLine": 58
+      }
+    },
+    {
+      "id": "component-invite-api",
+      "kind": "component",
+      "importance": "supporting",
+      "title": "Invitation API",
+      "summary": "Creates invitations and validates acceptance. Commits invitation and email outbox records together.",
+      "files": ["src/server/invites.ts", "src/app/api/invites/route.ts"],
+      "source": {
+        "startLine": 33,
+        "endLine": 37
+      }
+    },
+    {
+      "id": "component-outbox",
+      "kind": "component",
+      "importance": "supporting",
+      "title": "Email outbox",
+      "summary": "Stores the email job alongside the invitation so committed invitations remain recoverable.",
+      "files": ["prisma/schema.prisma"],
+      "source": {
+        "startLine": 13,
+        "endLine": 17
+      }
+    },
+    {
+      "id": "component-email-worker",
+      "kind": "component",
+      "importance": "supporting",
+      "title": "Email worker",
+      "summary": "Delivers invitations through the existing job queue and retries using the invite ID as its idempotency key.",
+      "files": ["src/jobs/send-invite.ts"],
+      "source": {
+        "startLine": 13,
+        "endLine": 17
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "model-tokens",
+      "from": "step-model",
+      "to": "decision-tokens",
+      "relation": "depends_on"
+    },
+    {
+      "id": "model-outbox",
+      "from": "step-model",
+      "to": "decision-outbox",
+      "relation": "depends_on"
+    },
+    {
+      "id": "api-model",
+      "from": "step-api",
+      "to": "step-model",
+      "relation": "depends_on"
+    },
+    {
+      "id": "api-email",
+      "from": "step-api",
+      "to": "assumption-email",
+      "relation": "depends_on"
+    },
+    {
+      "id": "ui-api",
+      "from": "step-ui",
+      "to": "step-api",
+      "relation": "depends_on"
+    },
+    {
+      "id": "rollout-api",
+      "from": "step-rollout",
+      "to": "step-api",
+      "relation": "depends_on"
+    },
+    {
+      "id": "rollout-ui",
+      "from": "step-rollout",
+      "to": "step-ui",
+      "relation": "depends_on"
+    },
+    {
+      "id": "risk-api",
+      "from": "risk-concurrency",
+      "to": "step-api",
+      "relation": "affects"
+    },
+    {
+      "id": "recovery-outbox",
+      "from": "claim-recovery",
+      "to": "decision-outbox",
+      "relation": "supports"
+    },
+    {
+      "id": "expiry-tokens",
+      "from": "objection-expiry",
+      "to": "decision-tokens",
+      "relation": "challenges"
+    }
+  ],
+  "reviewFocus": [
+    "Is a 72-hour invite lifetime practical for enterprise onboarding, or should admins be able to configure it?",
+    "Can the identity provider reliably match an invite to a verified email, including aliases and SSO accounts?",
+    "Do atomic token consumption and the email outbox cover concurrent requests and delivery failures?"
+  ],
+  "diagrams": [
+    {
+      "id": "invite-delivery",
+      "kind": "architecture",
+      "title": "Invitation delivery architecture",
+      "description": "The API records the invitation and its email job together. The existing worker handles delivery and retries independently of the admin request.",
+      "nodes": [
+        {
+          "objectId": "component-invite-api",
+          "position": {
+            "x": 0,
+            "y": 100
+          }
+        },
+        {
+          "objectId": "component-outbox",
+          "position": {
+            "x": 370,
+            "y": 100
+          }
+        },
+        {
+          "objectId": "component-email-worker",
+          "position": {
+            "x": 740,
+            "y": 100
+          }
+        }
+      ],
+      "connections": [
+        {
+          "id": "records-job",
+          "from": "component-invite-api",
+          "to": "component-outbox",
+          "label": "records email job"
+        },
+        {
+          "id": "delivers-job",
+          "from": "component-outbox",
+          "to": "component-email-worker",
+          "label": "job for delivery"
+        }
+      ]
+    }
+  ],
+  "relationshipMap": {
+    "title": "Dependencies",
+    "description": "Inspect how token storage, API delivery, and rollout prerequisites affect this change."
+  }
+}

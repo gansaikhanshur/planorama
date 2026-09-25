@@ -1,0 +1,14 @@
+{
+  "name": "planorama",
+  "owner": {
+    "name": "gansaikhanshur"
+  },
+  "plugins": [
+    {
+      "name": "planorama",
+      "source": "./plugins/planorama",
+      "description": "Interactive implementation plan review with feedback returned to your coding agent."
+    }
+  ],
+  "description": "Local visual plan review for coding agents."
+}

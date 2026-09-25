@@ -1,0 +1,13 @@
+{
+  "name": "planorama",
+  "version": "0.1.0",
+  "description": "Interactive implementation plan review with feedback returned to your coding agent.",
+  "author": {
+    "name": "gansaikhanshur",
+    "url": "https://github.com/gansaikhanshur"
+  },
+  "skills": "./skills/",
+  "homepage": "https://github.com/gansaikhanshur/planorama",
+  "repository": "https://github.com/gansaikhanshur/planorama",
+  "keywords": ["planning", "review", "coding-agents"]
+}

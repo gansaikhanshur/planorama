@@ -15,9 +15,12 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "test:browser": "playwright test",
-    "format": "prettier --write app components lib scripts tests references examples *.ts *.json SKILL.md agents/openai.yaml",
-    "format:check": "prettier --check app components lib scripts tests references examples *.ts *.json SKILL.md agents/openai.yaml",
-    "planorama": "node --import tsx scripts/launch.ts"
+    "format": "prettier --write app components lib scripts tests references examples *.ts *.json SKILL.md agents/openai.yaml skills distribution .claude-plugin .codex-plugin README.md",
+    "format:check": "prettier --check app components lib scripts tests references examples *.ts *.json SKILL.md agents/openai.yaml skills distribution .claude-plugin .codex-plugin README.md",
+    "planorama": "node --import tsx scripts/launch.ts",
+    "setup": "node scripts/planorama.mjs setup",
+    "package:plugin": "node scripts/package-plugin.mjs",
+    "test:package": "node --import tsx --test tests/package.integration.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",

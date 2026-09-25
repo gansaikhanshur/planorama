@@ -35,49 +35,79 @@ Sections follow the content of the plan. Details open on demand, and diagrams ap
 
 **Requirements:** Node.js **22.13+**, npm, Git, and Codex or Claude Code. The commands below use a macOS or Linux shell.
 
-### 1. Install the local runtime
+### 1. Prepare the plugin package
+
+Until a tagged release is available, build the distribution from source. This step only packages files and does not require installing npm dependencies:
 
 ```sh
 git clone https://github.com/gansaikhanshur/planorama.git
 cd planorama
-npm ci
-npm run build
+node scripts/package-plugin.mjs
+cd dist/planorama-0.1.0
+node plugins/planorama/scripts/planorama.mjs setup
 ```
 
-The build prepares a cached runtime for subsequent reviews. Keep this checkout in a permanent location; the skill registration below points to it.
+Keep the extracted distribution in a permanent location. Setup installs dependencies and builds the app once in a separate writable cache. Later reviews reuse that runtime. If you skip setup, the first review performs it automatically; Node.js and npm must already be installed.
 
-### 2. Register the skill
+### 2. Install for your agent
 
-Run the block for your agent from the Planorama repository root. You can register both.
+Run the block for your agent from the `planorama-0.1.0` distribution directory. You can install in both agents.
 
 **Codex**
+
+```sh
+codex plugin marketplace add "$PWD"
+codex plugin add planorama@planorama
+```
+
+**Claude Code**
+
+```sh
+claude plugin marketplace add "$PWD"
+claude plugin install planorama@planorama
+```
+
+These commands register the catalog included in the package. Planorama is not yet listed in the public plugin directories.
+
+### 3. Review a plan
+
+Start a new agent session in your project, create or discuss an implementation plan, then invoke:
+
+| Installation       | Command                |
+| ------------------ | ---------------------- |
+| Codex plugin       | `$planorama`           |
+| Claude Code plugin | `/planorama:planorama` |
+
+The skill selects the current plan, prepares the review, and opens it in your browser. If the intended plan is unclear, it asks you to choose. You can also include an explicit plan path.
+
+Keep the agent session active while reviewing so it can receive your feedback.
+
+<details>
+<summary><strong>Standalone installation for the bare /planorama command</strong></summary>
+
+The standalone skill uses the same runtime and workflow. Choose either standalone or plugin installation for each agent to avoid duplicate discovery. From the source checkout root:
+
+```sh
+node scripts/planorama.mjs setup
+```
+
+Register for Codex:
 
 ```sh
 mkdir -p "$HOME/.agents/skills"
 ln -s "$PWD" "$HOME/.agents/skills/planorama"
 ```
 
-**Claude Code**
+Or for Claude Code:
 
 ```sh
 mkdir -p "$HOME/.claude/skills"
 ln -s "$PWD" "$HOME/.claude/skills/planorama"
 ```
 
-If a destination already exists, inspect it before replacing it. Start a new agent session after registration.
+Start a new session and invoke `$planorama` in Codex or `/planorama` in Claude Code. Inspect existing registrations before replacing them. If using the extracted package, run these commands from its `plugins/planorama` directory.
 
-### 3. Review a plan
-
-Open your project in your agent, create or discuss an implementation plan, then invoke:
-
-| Agent       | Command      |
-| ----------- | ------------ |
-| Codex       | `$planorama` |
-| Claude Code | `/planorama` |
-
-The skill selects the current plan, prepares the review, and opens it in your browser. If the intended plan is unclear, it asks you to choose. You can also include an explicit plan path.
-
-Keep the agent session active while reviewing so it can receive your feedback.
+</details>
 
 ## How it works
 
@@ -98,10 +128,10 @@ For the model format and examples, see the [semantic model reference](references
 
 ## Try the demo
 
-After installation, run this from the Planorama checkout:
+After installation, run this from the source checkout or the package's `plugins/planorama` directory:
 
 ```sh
-npm run planorama
+node scripts/planorama.mjs review
 ```
 
 This opens the bundled example in your default browser at **http://127.0.0.1:4317**. No agent is needed to explore the interface. Automatic feedback delivery requires an active agent listener.
@@ -125,10 +155,10 @@ Run these commands from the Planorama checkout:
 
 ```sh
 # Open a plan with a semantic model prepared by your agent.
-npm run planorama -- /absolute/path/plan.md --model /absolute/path/planorama.json
+node scripts/planorama.mjs review /absolute/path/plan.md --model /absolute/path/planorama.json
 
 # Resume a saved review.
-npm run planorama -- --session /absolute/path/session.json
+node scripts/planorama.mjs review --session /absolute/path/session.json
 ```
 
 The [skill instructions](SKILL.md) describe how the agent prepares the model and waits for feedback. Launching a Markdown file without `--model` uses a basic section importer, which does not infer architecture or understand arbitrary prose.
@@ -139,15 +169,16 @@ See the [local runtime reference](references/local-runtime.md) for listener comm
 
 ## Updating
 
-From your Planorama checkout:
+For packaged plugins, install the new distribution using the [plugin installation guide](distribution/INSTALL.md). Runtime versions are isolated so existing review servers keep their original files.
+
+For a standalone source checkout:
 
 ```sh
 git pull --ff-only
-npm ci
-npm run build
+node scripts/planorama.mjs setup
 ```
 
-Your skill registrations continue to point to the same checkout. New reviews use the updated build; existing servers retain the build they started with.
+Your skill registrations continue to point to the same checkout. Setup prepares a new runtime only when the bundled runtime files or Node.js major version change.
 
 ## Development
 
@@ -171,13 +202,16 @@ npm run build
 npx playwright install chromium
 npm run test:browser
 node --import tsx --test tests/startup.integration.ts
+npm run test:package
 ```
 
-Browser tests cover review actions, saved feedback, submission, and responsive layouts. The startup integration check requires a current production build.
+Browser tests cover review actions, saved feedback, submission, and responsive layouts. The startup integration check requires a current production build. The package integration check installs an extracted distribution in a temporary cache and exercises setup, reuse, revision feedback, and approval. It needs npm registry access.
 
 </details>
 
 ## Documentation
+
+- [Plugin installation](distribution/INSTALL.md) — packaged setup, agent registration, updates, and removal.
 
 - [Skill workflow](SKILL.md) — plan selection, extraction, review, and revision.
 - [Semantic model](references/semantic-model.md) — schema, source references, and optional diagrams.

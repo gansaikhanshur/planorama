@@ -1,0 +1,12 @@
+{
+  "name": "planorama",
+  "interface": { "displayName": "Planorama" },
+  "plugins": [
+    {
+      "name": "planorama",
+      "source": { "source": "local", "path": "./plugins/planorama" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

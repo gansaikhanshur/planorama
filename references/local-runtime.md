@@ -2,6 +2,16 @@
 
 The skill directory is self-contained: Next.js App Router, React, TypeScript, Tailwind CSS, a shadcn-style Button primitive, React Flow, and Zod. There is no database, model API, telemetry integration, or cloud backend. The launcher disables Next.js telemetry for the local process.
 
+## Plugin setup
+
+The standard distribution contains `plugin.json`, Claude Code and Codex compatibility manifests, a discoverable `skills/planorama/SKILL.md` entry, the canonical root workflow, and the runtime source. `node scripts/package-plugin.mjs` creates a `.tar.gz`, its SHA-256 checksum, and an extracted catalog under `dist/`. The allowlist excludes installed dependencies, build output, private review sessions, and Git metadata. The included catalogs point at `plugins/planorama` and can be registered with either agent. See [the installation guide](../distribution/INSTALL.md).
+
+The dependency-free entry point is `node <planorama-root>/scripts/planorama.mjs <setup|review|wait|validate>`. It copies runtime source into a content-addressed writable cache, installs locked dependencies with npm, and builds once. Plugin files and the user's project are not modified by setup. The cache key includes source files, platform, architecture, and Node.js major version. A lock serializes concurrent setup and a readiness marker is written after success. Failed setup can be retried; an abruptly terminated process can leave a stale lock, reported with its path. Existing runtime versions are retained for active review servers.
+
+`setup` prints a JSON result with the runtime directory. `review`, `wait`, and `validate` prepare automatically if necessary and then delegate to the corresponding runtime scripts, preserving arguments and exit codes. Setup logs go to stderr, keeping wait results readable as JSON on stdout. First setup needs Node.js 22.13+, npm, registry access, and write access to the runtime cache. It is not instantaneous. Run setup at installation to keep that work out of the first review. Subsequent runs do not reinstall or rebuild.
+
+`PLANORAMA_RUNTIME_HOME` overrides the cache with an absolute path. Defaults: `~/Library/Caches/planorama/runtimes` on macOS and `$XDG_CACHE_HOME/planorama/runtimes` (or `~/.cache/planorama/runtimes`) on Linux. This initial distribution targets macOS and Linux; Windows is not yet verified. Plugin uninstall leaves review files and runtime caches intact.
+
 ## Commands
 
 Run these inside the skill directory (use absolute paths to input files):
@@ -60,6 +70,8 @@ The UI polls listener presence and receipt timestamps. A heartbeat expires after
 
 ## Packaging boundary
 
-`SKILL.md` is the portable entry point for Codex and Claude Code. `agents/openai.yaml` adds Codex UI metadata; the app has no dependency on it. A future distribution can copy this entire directory into either agent's skill installation and run `npm ci`. Keep scripts, references, examples, app code, and the lockfile together. Installation into the user's agent configuration is a separate action from building this repository.
+`SKILL.md` is the canonical workflow for standalone and plugin installations. The plugin skill entry at `skills/planorama/SKILL.md` points to that workflow inside the same package; it does not fetch instructions remotely. `agents/openai.yaml` adds standalone Codex metadata. The manifests declare no MCP servers, credentials, or startup hooks. Setup is an explicit command or runs on first skill use; installing plugin files alone does not execute it. Host approvals still apply to shell execution and dependency installation.
 
-This first version deliberately uses agent-authored JSON for high-quality semantic extraction. The basic importer only classifies explicit headings and does not understand arbitrary prose, infer dependencies, or automatically parse ADR fields. Browser file upload, live source watching, semantic revision reconciliation, graph editing, and waking inactive agent conversations are future extensions. The local file handoff plus waiting CLI is the portable integration boundary.
+The portable `plugin.json` and both compatibility manifests use the same identity and version. The package builder rejects version mismatches. Distribution includes local catalogs for installation and testing; generating the archive does not submit it to a public directory or publish a GitHub release.
+
+This version uses agent-authored JSON for semantic extraction. The basic importer only classifies explicit headings and does not understand arbitrary prose, infer dependencies, or automatically parse ADR fields. Browser file upload, live source watching, semantic revision reconciliation, graph editing, and waking inactive agent conversations remain future extensions. The local file handoff plus waiting CLI is the portable integration boundary.

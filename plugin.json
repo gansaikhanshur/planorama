@@ -1,0 +1,30 @@
+{
+  "name": "planorama",
+  "version": "0.1.0",
+  "description": "Interactive implementation plan review with feedback returned to your coding agent.",
+  "author": {
+    "name": "gansaikhanshur",
+    "url": "https://github.com/gansaikhanshur"
+  },
+  "homepage": "https://github.com/gansaikhanshur/planorama",
+  "repository": "https://github.com/gansaikhanshur/planorama",
+  "keywords": ["planning", "review", "coding-agents"],
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Planorama",
+        "shortDescription": "Inspect and challenge implementation plans visually",
+        "longDescription": "Review decisions, assumptions, risks, and implementation steps in a local browser, then return approval or revision feedback to your agent.",
+        "developerName": "gansaikhanshur",
+        "category": "Productivity",
+        "capabilities": ["Read", "Write"],
+        "defaultPrompt": [
+          "Review my current implementation plan with Planorama."
+        ],
+        "brandColor": "#0E3B2E",
+        "logo": "./public/planorama.png"
+      }
+    }
+  }
+}
